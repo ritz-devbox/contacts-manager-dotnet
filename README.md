@@ -1,6 +1,6 @@
 # contacts-manager-dotnet
 
-WinForms contacts manager for .NET 8 using SQLite — CRUD, import/export, validation, paging, and tests.
+WinForms contacts manager for .NET 8 using SQLite â€” CRUD, import/export, validation, paging, and tests.
 
 ## Overview
 A simple Windows Forms contacts manager built for .NET 8 that stores contacts in a local SQLite database. Features include:
@@ -8,17 +8,14 @@ A simple Windows Forms contacts manager built for .NET 8 that stores contacts in
 - Create, read, update, delete (CRUD) contacts
 - CSV import and export
 - Duplicate detection (by Name + Email)
-- Input validation: Name (required), Email (basic format), Mobile (digits only, 7–15 chars)
+- Input validation: Name (required), Email (basic format), Mobile (digits only, 7â€“15 chars)
 - Search / filter by name or email
 - Paging support for large lists
 - Database schema migration adding an Id primary key when required
 - Unit tests using xUnit and in-memory SQLite
 - Azure Pipelines CI configuration included
 
-## Short description (for repository "Description" field)
-WinForms contacts manager for .NET 8 using SQLite — CRUD, import/export, validation, paging, and tests.
-
-## Long description (for README intro)
+## Description
 A Windows Forms contacts manager targeting .NET 8 that stores contacts in a local SQLite database. The app demonstrates a small but complete desktop data application with schema migration, validation, import/export, paging, search/filter, duplicate checking, and a test suite.
 
 ## Features
@@ -51,17 +48,15 @@ An `azure-pipelines.yml` file is included to build the solution and run tests on
 winforms, dotnet8, sqlite, contacts, crud, csv, testing, xunit, ci, azure-pipelines
 
 ## Contribution
-Contributions welcome — open an issue or a pull request. Suggested next improvements:
+Contributions welcome â€” open an issue or a pull request. Suggested next improvements:
 - Add stronger email validation or integrate a validation library
 - Add integration/UI tests (e.g. FlaUI) to exercise the WinForms UI
 - Add localization and better error handling
 
 ## License
-Add a LICENSE file if you want to specify reuse terms. MIT is a permissive choice.
 
 ## Repository setup notes
 - Recommended repo name: `contacts-manager-dotnet` (clear and descriptive).
 - Recommended branch: `main`.
 - A `.gitignore` for .NET/Visual Studio is already included.
 
-If you want, I can commit the workspace, add the remote you create, and push changes. I can also create a GitHub repository via API if you provide a token.
