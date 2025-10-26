@@ -1,0 +1,51 @@
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Build artifacts
+bin/
+obj/
+**/bin/
+**/obj/
+
+# Rider
+.idea/
+*.sln.iml
+
+# NuGet
+*.nupkg
+.nuget/
+packages/
+
+# OS generated
+Thumbs.db
+desktop.ini
+
+# SQLite database file
+*.db
+SQLConnection/data.db
+
+# Test results
+TestResults/
+
+# Resharper
+_ReSharper*/
+*.ReSharper*/
+
+# Publish
+publish/
+
+# VS Code
+.vscode/
+
+# Logs
+*.log
+
+# Secrets
+secrets.json
+
+# JetBrains Rider
+.idea/
