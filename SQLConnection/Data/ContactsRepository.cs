@@ -21,13 +21,78 @@ namespace SQLConnection.Data
         {
             using var con = new SQLiteConnection(_connectionString);
             con.Open();
-            using var cmd = new SQLiteCommand(@"CREATE TABLE IF NOT EXISTS contacts(
-                Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                Name TEXT NOT NULL,
-                Email TEXT,
-                Mobile TEXT
-            );", con);
-            cmd.ExecuteNonQuery();
+
+            using var tx = con.BeginTransaction();
+            try
+            {
+                // Check if table exists
+                using var checkCmd = new SQLiteCommand("SELECT name FROM sqlite_master WHERE type='table' AND name='contacts';", con, tx);
+                var exists = checkCmd.ExecuteScalar() != null;
+
+                if (!exists)
+                {
+                    using var cmd = new SQLiteCommand(@"CREATE TABLE IF NOT EXISTS contacts(
+                        Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        Name TEXT NOT NULL,
+                        Email TEXT,
+                        Mobile TEXT
+                    );", con, tx);
+                    cmd.ExecuteNonQuery();
+                    tx.Commit();
+                    return;
+                }
+
+                // Table exists - ensure it has Id column. If not, migrate data into new table with Id.
+                var columns = new List<string>();
+                using (var colCmd = new SQLiteCommand("PRAGMA table_info(contacts);", con, tx))
+                using (var dr = colCmd.ExecuteReader())
+                {
+                    while (dr.Read())
+                    {
+                        columns.Add(dr["name"]?.ToString());
+                    }
+                }
+
+                if (!columns.Any(c => string.Equals(c, "Id", StringComparison.OrdinalIgnoreCase)))
+                {
+                    // Migrate: create new table, copy data, drop old, rename
+                    using var createCmd = new SQLiteCommand(@"CREATE TABLE contacts_new(
+                        Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        Name TEXT NOT NULL,
+                        Email TEXT,
+                        Mobile TEXT
+                    );", con, tx);
+                    createCmd.ExecuteNonQuery();
+
+                    // Copy data from old table. Attempt to map Name, Email, Mobile if they exist.
+                    var copyCols = new List<string>();
+                    if (columns.Any(c => string.Equals(c, "Name", StringComparison.OrdinalIgnoreCase))) copyCols.Add("Name");
+                    if (columns.Any(c => string.Equals(c, "Email", StringComparison.OrdinalIgnoreCase))) copyCols.Add("Email");
+                    if (columns.Any(c => string.Equals(c, "Mobile", StringComparison.OrdinalIgnoreCase))) copyCols.Add("Mobile");
+
+                    var selectCols = copyCols.Count > 0 ? string.Join(",", copyCols) : string.Empty;
+                    var insertCols = selectCols; // same order
+
+                    if (!string.IsNullOrEmpty(selectCols))
+                    {
+                        using var copyCmd = new SQLiteCommand($"INSERT INTO contacts_new({insertCols}) SELECT {selectCols} FROM contacts;", con, tx);
+                        copyCmd.ExecuteNonQuery();
+                    }
+
+                    using var dropCmd = new SQLiteCommand("DROP TABLE contacts;", con, tx);
+                    dropCmd.ExecuteNonQuery();
+
+                    using var renameCmd = new SQLiteCommand("ALTER TABLE contacts_new RENAME TO contacts;", con, tx);
+                    renameCmd.ExecuteNonQuery();
+                }
+
+                tx.Commit();
+            }
+            catch
+            {
+                try { tx.Rollback(); } catch { }
+                throw;
+            }
         }
 
         public int Insert(Contact contact)

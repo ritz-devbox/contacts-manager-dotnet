@@ -2,6 +2,7 @@ using System;
 using System.Data;
 using System.Data.SQLite;
 using System.IO;
+using System.Linq;
 using System.Text.RegularExpressions;
 using System.Windows.Forms;
 using SQLConnection.Data;
@@ -11,8 +12,8 @@ namespace SQLConnection
 {
     public partial class Form1 : Form
     {
-        string path = Application.StartupPath + "\\data.db";
-        string cs = @"URI=file:" + Application.StartupPath + "\\data.db";
+        private readonly string path;
+        private readonly string cs;
 
         private ContactsRepository repository;
 
@@ -26,6 +27,8 @@ namespace SQLConnection
         public Form1()
         {
             InitializeComponent();
+            path = Path.Combine(Application.StartupPath, "data.db");
+            cs = "URI=file:" + path;
             this.Load += new EventHandler(Form1_Load);
         }
 
@@ -34,60 +37,118 @@ namespace SQLConnection
             repository = new ContactsRepository(cs);
             repository.EnsureSchema();
 
-            LoadContactsDataGridView();
+            // Ensure columns are created once
+            EnsureGridColumns();
+
+            // Use paged loading instead of loading all rows
+            currentPage = 1;
+            RefreshPage();
 
             // Initialize UI state
-            btn_update.Enabled = false;
-            btn_delete.Enabled = false;
-            labelStatus.Text = string.Empty;
+            try
+            {
+                btn_update.Enabled = false;
+                btn_delete.Enabled = false;
+            }
+            catch { }
 
-            // wire search/paging
-            txtSearch.TextChanged += (s, ev) => { currentPage = 1; RefreshPage(); };
-            btnPrev.Click += (s, ev) => { if (currentPage > 1) { currentPage--; RefreshPage(); } };
-            btnNext.Click += (s, ev) => { currentPage++; RefreshPage(); };
+            if (TryGetControl<TextBox>("txtSearch", out var searchBox))
+            {
+                // debounce search using a Timer
+                var searchTimer = new System.Windows.Forms.Timer { Interval = 350 };
+                searchTimer.Tick += (s, ev) =>
+                {
+                    searchTimer.Stop();
+                    currentPage = 1;
+                    RefreshPage();
+                };
+
+                searchBox.TextChanged += (s, ev) =>
+                {
+                    searchTimer.Stop();
+                    searchTimer.Start();
+                };
+            }
+
+            if (TryGetControl<Button>("btnPrev", out var prev))
+            {
+                prev.Click += (s, ev) => { if (currentPage > 1) { currentPage--; RefreshPage(); } };
+            }
+
+            if (TryGetControl<Button>("btnNext", out var next))
+            {
+                next.Click += (s, ev) => { currentPage++; RefreshPage(); };
+            }
+        }
+
+        private bool TryGetControl<T>(string name, out T control) where T : Control
+        {
+            control = null;
+            var matches = this.Controls.Find(name, true);
+            if (matches != null && matches.Length > 0 && matches[0] is T c)
+            {
+                control = c;
+                return true;
+            }
+            return false;
         }
 
         private void RefreshPage()
         {
-            var (items, total) = repository.GetPage(currentPage, pageSize, txtSearch.Text);
-            Contactsdatagridview.Rows.Clear();
-            foreach (var c in items)
-            {
-                Contactsdatagridview.Rows.Add(c.Id, c.Name, c.Email, c.Mobile);
-            }
-
-            var totalPages = (int)Math.Ceiling(total / (double)pageSize);
-            lblPageInfo.Text = $"Page {currentPage} of {Math.Max(1, totalPages)}";
-        }
-
-        private void LoadContactsDataGridView()
-        {
             try
             {
-                Contactsdatagridview.Rows.Clear();
-
-                // Ensure columns are set up
-                if (Contactsdatagridview.Columns.Count == 0)
+                // If there is a search box use its trimmed text otherwise null
+                string search = null;
+                if (TryGetControl<TextBox>("txtSearch", out var sbox))
                 {
-                    var colId = new DataGridViewTextBoxColumn();
-                    colId.Name = "Id";
-                    colId.HeaderText = "Id";
-                    colId.Visible = false; // hide internal Id
-                    Contactsdatagridview.Columns.Add(colId);
-
-                    Contactsdatagridview.Columns.Add("Name", "Name");
-                    Contactsdatagridview.Columns.Add("Email", "Email");
-                    Contactsdatagridview.Columns.Add("Mobile", "Mobile");
+                    search = string.IsNullOrWhiteSpace(sbox.Text) ? null : sbox.Text.Trim();
                 }
 
-                foreach (var c in repository.GetAll())
+                var (items, total) = repository.GetPage(currentPage, pageSize, search);
+
+                // If currentPage is out of range, clamp and reload
+                var totalPages = Math.Max(1, (int)Math.Ceiling(total / (double)pageSize));
+                if (currentPage > totalPages)
+                {
+                    currentPage = totalPages;
+                    (items, total) = repository.GetPage(currentPage, pageSize, search);
+                }
+
+                Contactsdatagridview.Rows.Clear();
+                foreach (var c in items)
                 {
                     Contactsdatagridview.Rows.Add(c.Id, c.Name, c.Email, c.Mobile);
                 }
+
+                // Update page info label if present
+                if (TryGetControl<Label>("lblPageInfo", out var pageLabel))
+                {
+                    pageLabel.Text = $"Page {currentPage} of {totalPages}";
+                }
+
+                // Update prev/next buttons if present
+                if (TryGetControl<Button>("btnPrev", out var prev)) prev.Enabled = currentPage > 1;
+                if (TryGetControl<Button>("btnNext", out var next)) next.Enabled = currentPage < totalPages;
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"An error occurred while loading data: {ex.Message}");
+                ShowStatus($"Error loading page: {ex.Message}", false);
+            }
+        }
+
+        private void EnsureGridColumns()
+        {
+            if (Contactsdatagridview.Columns.Count == 0)
+            {
+                var colId = new DataGridViewTextBoxColumn();
+                colId.Name = "Id";
+                colId.HeaderText = "Id";
+                colId.Visible = false; // hide internal Id
+                Contactsdatagridview.Columns.Add(colId);
+
+                Contactsdatagridview.Columns.Add("Name", "Name");
+                Contactsdatagridview.Columns.Add("Email", "Email");
+                Contactsdatagridview.Columns.Add("Mobile", "Mobile");
             }
         }
 
@@ -133,11 +194,23 @@ namespace SQLConnection
 
             try
             {
+                var name = tb_name.Text.Trim();
+                var email = string.IsNullOrWhiteSpace(tb_email.Text) ? null : tb_email.Text.Trim();
+                var mobile = string.IsNullOrWhiteSpace(tb_mobile.Text) ? null : tb_mobile.Text.Trim();
+
+                // Check duplicate explicitly
+                var existing = repository.GetByNameEmail(name, email);
+                if (existing != null)
+                {
+                    ShowStatus("Contact already exists.", false);
+                    return;
+                }
+
                 var contact = new Contact
                 {
-                    Name = tb_name.Text.Trim(),
-                    Email = string.IsNullOrWhiteSpace(tb_email.Text) ? null : tb_email.Text.Trim(),
-                    Mobile = string.IsNullOrWhiteSpace(tb_mobile.Text) ? null : tb_mobile.Text.Trim()
+                    Name = name,
+                    Email = email,
+                    Mobile = mobile
                 };
 
                 var id = repository.Insert(contact);
@@ -147,7 +220,7 @@ namespace SQLConnection
                 }
                 else
                 {
-                    ShowStatus("Contact already exists.", false);
+                    ShowStatus("Contact was not saved.", false);
                 }
 
                 // Refresh grid after successful insert
@@ -227,15 +300,16 @@ namespace SQLConnection
         {
             try
             {
-                if (e.RowIndex >= 0)
+                if (e.RowIndex >= 0 && e.RowIndex < Contactsdatagridview.Rows.Count)
                 {
                     var row = Contactsdatagridview.Rows[e.RowIndex];
-                    if (row.Cells["Id"].Value != null)
+                    var idCell = row.Cells["Id"];
+                    if (idCell?.Value != null && int.TryParse(idCell.Value.ToString(), out var id))
                     {
-                        selectedId = Convert.ToInt32(row.Cells["Id"].Value);
-                        tb_name.Text = row.Cells["Name"].FormattedValue.ToString();
-                        tb_email.Text = row.Cells["Email"].FormattedValue.ToString();
-                        tb_mobile.Text = row.Cells["Mobile"].FormattedValue.ToString();
+                        selectedId = id;
+                        tb_name.Text = row.Cells["Name"].FormattedValue?.ToString() ?? string.Empty;
+                        tb_email.Text = row.Cells["Email"].FormattedValue?.ToString() ?? string.Empty;
+                        tb_mobile.Text = row.Cells["Mobile"].FormattedValue?.ToString() ?? string.Empty;
 
                         btn_update.Enabled = true;
                         btn_delete.Enabled = true;
@@ -257,8 +331,12 @@ namespace SQLConnection
             tb_email.Clear();
             tb_mobile.Clear();
 
-            btn_update.Enabled = false;
-            btn_delete.Enabled = false;
+            try
+            {
+                btn_update.Enabled = false;
+                btn_delete.Enabled = false;
+            }
+            catch { }
         }
     }
 }
