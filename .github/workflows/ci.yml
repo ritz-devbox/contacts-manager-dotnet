@@ -21,11 +21,11 @@ jobs:
      - name: Restore
        run: dotnet restore
 
- #- name: Install dotnet-format
- #run: dotnet tool install --tool-path .tools dotnet-format --version8.*
+     #- name: Install dotnet-format
+     #run: dotnet tool install --tool-path .tools dotnet-format --version8.*
 
- #- name: Verify formatting
- #run: ./.tools/dotnet-format --folder --verify-no-changes
+     #- name: Verify formatting
+     #run: ./.tools/dotnet-format --folder --verify-no-changes
 
      - name: Format
        run: dotnet format --verify-no-changes
