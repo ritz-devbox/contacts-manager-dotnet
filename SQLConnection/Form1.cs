@@ -5,8 +5,10 @@ using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Windows.Forms;
+using Microsoft.Extensions.Logging;
 using SQLConnection.Data;
 using SQLConnection.Models;
+using SQLConnection.UI;
 
 namespace SQLConnection
 {
@@ -14,6 +16,7 @@ namespace SQLConnection
     {
         private readonly string path;
         private readonly string cs;
+        private readonly ILogger<Form1>? _logger;
 
         private ContactsRepository repository;
 
@@ -24,18 +27,38 @@ namespace SQLConnection
         private int currentPage = 1;
         private int pageSize = 10;
 
+        // DI-friendly constructor
+        public Form1(ContactsRepository repository, ILogger<Form1> logger)
+        {
+            InitializeComponent();
+            path = Path.Combine(Application.StartupPath, "data.db");
+            cs = "URI=file:" + path;
+            this.repository = repository;
+            _logger = logger;
+            this.Load += new EventHandler(Form1_Load);
+        }
+
+        // Backwards-compatible constructor used by designer and tests
         public Form1()
         {
             InitializeComponent();
             path = Path.Combine(Application.StartupPath, "data.db");
             cs = "URI=file:" + path;
+            repository = new ContactsRepository(cs);
+            _logger = null;
             this.Load += new EventHandler(Form1_Load);
         }
 
         private void Form1_Load(object sender, EventArgs e)
         {
-            repository = new ContactsRepository(cs);
-            repository.EnsureSchema();
+            try
+            {
+                repository.EnsureSchema();
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "EnsureSchema failed in Form1_Load");
+            }
 
             // Ensure columns are created once
             EnsureGridColumns();
@@ -78,6 +101,38 @@ namespace SQLConnection
             if (TryGetControl<Button>("btnNext", out var next))
             {
                 next.Click += (s, ev) => { currentPage++; RefreshPage(); };
+            }
+
+            // Wire import/export opener if present
+            if (TryGetControl<Button>("btnImportExport", out var ie))
+            {
+                ie.Click += (s, ev) => OpenImportExport();
+            }
+            else
+            {
+                // Add a simple menu item under the form (if a menu strip exists) - otherwise skip
+                if (TryGetControl<MenuStrip>("menuStrip1", out var ms))
+                {
+                    var file = new ToolStripMenuItem("File");
+                    var imp = new ToolStripMenuItem("Import / Export");
+                    imp.Click += (s, ev) => OpenImportExport();
+                    file.DropDownItems.Add(imp);
+                    ms.Items.Add(file);
+                }
+            }
+        }
+
+        private void OpenImportExport()
+        {
+            try
+            {
+                using var dlg = new ImportExportDialog(repository);
+                dlg.ShowDialog(this);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "Failed opening ImportExport dialog");
+                MessageBox.Show("Cannot open Import/Export dialog: " + ex.Message);
             }
         }
 
@@ -133,6 +188,7 @@ namespace SQLConnection
             catch (Exception ex)
             {
                 ShowStatus($"Error loading page: {ex.Message}", false);
+                _logger?.LogError(ex, "RefreshPage failed");
             }
         }
 
@@ -337,6 +393,11 @@ namespace SQLConnection
                 btn_delete.Enabled = false;
             }
             catch { }
+        }
+
+        private void btnImportExport_Click(object sender, EventArgs e)
+        {
+            OpenImportExport();
         }
     }
 }

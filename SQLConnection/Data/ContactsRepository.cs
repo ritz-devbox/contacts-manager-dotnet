@@ -4,6 +4,8 @@ using System.Data.SQLite;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 using SQLConnection.Models;
 
 namespace SQLConnection.Data
@@ -11,10 +13,12 @@ namespace SQLConnection.Data
     public class ContactsRepository
     {
         private readonly string _connectionString;
+        private readonly ILogger<ContactsRepository>? _logger;
 
-        public ContactsRepository(string connectionString)
+        public ContactsRepository(string connectionString, ILogger<ContactsRepository>? logger = null)
         {
             _connectionString = connectionString;
+            _logger = logger;
         }
 
         public void EnsureSchema()
@@ -39,6 +43,7 @@ namespace SQLConnection.Data
                     );", con, tx);
                     cmd.ExecuteNonQuery();
                     tx.Commit();
+                    _logger?.LogInformation("Created contacts table.");
                     return;
                 }
 
@@ -84,13 +89,16 @@ namespace SQLConnection.Data
 
                     using var renameCmd = new SQLiteCommand("ALTER TABLE contacts_new RENAME TO contacts;", con, tx);
                     renameCmd.ExecuteNonQuery();
+
+                    _logger?.LogInformation("Migrated legacy contacts table to include Id column.");
                 }
 
                 tx.Commit();
             }
-            catch
+            catch (Exception ex)
             {
                 try { tx.Rollback(); } catch { }
+                _logger?.LogError(ex, "EnsureSchema failed");
                 throw;
             }
         }
@@ -101,6 +109,7 @@ namespace SQLConnection.Data
             var existing = GetByNameEmail(contact.Name, contact.Email);
             if (existing != null)
             {
+                _logger?.LogInformation($"Insert skipped - duplicate found for {contact.Name} / {contact.Email}");
                 return existing.Id; // return existing id, do not insert duplicate
             }
 
@@ -111,6 +120,7 @@ namespace SQLConnection.Data
             cmd.Parameters.AddWithValue("@Email", string.IsNullOrEmpty(contact.Email) ? (object)DBNull.Value : contact.Email);
             cmd.Parameters.AddWithValue("@Mobile", string.IsNullOrEmpty(contact.Mobile) ? (object)DBNull.Value : contact.Mobile);
             var id = Convert.ToInt32(cmd.ExecuteScalar());
+            _logger?.LogInformation($"Inserted contact {contact.Name} with Id {id}");
             return id;
         }
 
@@ -205,6 +215,7 @@ namespace SQLConnection.Data
             cmd.Parameters.AddWithValue("@Mobile", string.IsNullOrEmpty(contact.Mobile) ? (object)DBNull.Value : contact.Mobile);
             cmd.Parameters.AddWithValue("@Id", contact.Id);
             cmd.ExecuteNonQuery();
+            _logger?.LogInformation($"Updated contact Id={contact.Id}");
         }
 
         public void Delete(int id)
@@ -214,6 +225,7 @@ namespace SQLConnection.Data
             using var cmd = new SQLiteCommand("DELETE FROM contacts WHERE Id = @Id", con);
             cmd.Parameters.AddWithValue("@Id", id);
             cmd.ExecuteNonQuery();
+            _logger?.LogInformation($"Deleted contact Id={id}");
         }
 
         public int ImportFromCsv(string filePath)
@@ -235,7 +247,36 @@ namespace SQLConnection.Data
                 Insert(new Contact { Name = name, Email = string.IsNullOrEmpty(email) ? null : email, Mobile = string.IsNullOrEmpty(mobile) ? null : mobile });
                 inserted++;
             }
+            _logger?.LogInformation($"Imported {inserted} contacts from {filePath}");
             return inserted;
+        }
+
+        public async Task<int> ImportFromCsvAsync(string filePath, IProgress<int> progress = null)
+        {
+            return await Task.Run(() =>
+            {
+                int inserted = 0;
+                if (!File.Exists(filePath)) throw new FileNotFoundException("CSV file not found", filePath);
+                var lines = File.ReadAllLines(filePath);
+                for (int i = 0; i < lines.Length; i++)
+                {
+                    var line = lines[i];
+                    if (string.IsNullOrWhiteSpace(line)) continue;
+                    var parts = SplitCsvLine(line);
+                    if (parts.Length < 1) continue;
+                    var name = parts.Length > 0 ? parts[0].Trim() : string.Empty;
+                    var email = parts.Length > 1 ? parts[1].Trim() : null;
+                    var mobile = parts.Length > 2 ? parts[2].Trim() : null;
+                    if (string.IsNullOrEmpty(name)) continue;
+                    var existing = GetByNameEmail(name, email);
+                    if (existing != null) continue;
+                    Insert(new Contact { Name = name, Email = string.IsNullOrEmpty(email) ? null : email, Mobile = string.IsNullOrEmpty(mobile) ? null : mobile });
+                    inserted++;
+                    progress?.Report(i + 1);
+                }
+                _logger?.LogInformation($"Imported {inserted} contacts from {filePath} (async)");
+                return inserted;
+            });
         }
 
         public void ExportToCsv(string filePath)
@@ -246,7 +287,27 @@ namespace SQLConnection.Data
             {
                 sw.WriteLine(EscapeCsv(c.Name) + "," + EscapeCsv(c.Email) + "," + EscapeCsv(c.Mobile));
             }
+            _logger?.LogInformation($"Exported {all.Count()} contacts to {filePath}");
         }
+
+        public async Task ExportToCsvAsync(string filePath, IProgress<int> progress = null)
+        {
+            await Task.Run(() =>
+            {
+                var all = GetAll().ToList();
+                using var sw = new StreamWriter(filePath, false, Encoding.UTF8);
+                for (int i = 0; i < all.Count; i++)
+                {
+                    var c = all[i];
+                    sw.WriteLine(EscapeCsv(c.Name) + "," + EscapeCsv(c.Email) + "," + EscapeCsv(c.Mobile));
+                    progress?.Report(i + 1);
+                }
+                _logger?.LogInformation($"Exported {all.Count} contacts to {filePath} (async)");
+            });
+        }
+
+        // Provide reusable CSV parsing for UI
+        public string[] ParseCsvLine(string line) => SplitCsvLine(line);
 
         private static string[] SplitCsvLine(string line)
         {
