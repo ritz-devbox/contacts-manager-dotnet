@@ -9,7 +9,6 @@ on:
 jobs:
  build:
  runs-on: windows-latest
-
  steps:
  - uses: actions/checkout@v4
 
@@ -22,7 +21,7 @@ jobs:
  run: dotnet restore
 
  - name: Install dotnet-format
- run: dotnet tool install --tool-path .tools dotnet-format --version8.*
+ run: dotnet tool install --tool-path .tools dotnet-format --version 8.*
 
  - name: Verify formatting
  run: ./.tools/dotnet-format --folder --verify-no-changes
