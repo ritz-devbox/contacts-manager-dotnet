@@ -38,6 +38,7 @@
             btn_save = new Button();
             btn_update = new Button();
             btn_delete = new Button();
+            btnImportExport = new Button();
             Contactsdatagridview = new DataGridView();
             labelStatus = new Label();
             ((System.ComponentModel.ISupportInitialize)Contactsdatagridview).BeginInit();
@@ -133,6 +134,16 @@
             btn_delete.UseVisualStyleBackColor = true;
             btn_delete.Click += btn_delete_Click;
             // 
+            // btnImportExport
+            // 
+            btnImportExport.Location = new Point(24, 452);
+            btnImportExport.Name = "btnImportExport";
+            btnImportExport.Size = new Size(150, 34);
+            btnImportExport.TabIndex = 14;
+            btnImportExport.Text = "Import / Export";
+            btnImportExport.UseVisualStyleBackColor = true;
+            btnImportExport.Click += new EventHandler(this.btnImportExport_Click);
+            // 
             // Contactsdatagridview
             // 
             Contactsdatagridview.BackgroundColor = SystemColors.Control;
@@ -159,6 +170,7 @@
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(959, 629);
             Controls.Add(labelStatus);
+            Controls.Add(btnImportExport);
             Controls.Add(Contactsdatagridview);
             Controls.Add(btn_delete);
             Controls.Add(btn_update);
@@ -187,6 +199,7 @@
         private Button btn_save;
         private Button btn_update;
         private Button btn_delete;
+        private Button btnImportExport;
         private DataGridView Contactsdatagridview;
         private Label labelStatus;
     }

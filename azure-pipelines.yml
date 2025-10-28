@@ -19,6 +19,13 @@ steps:
   inputs:
     restoreSolution: '**/*.sln'
 
+# Install dotnet-format locally and run verification (fails if formatting issues)
+- script: |
+    dotnet tool install --tool-path .tools dotnet-format --version8.*
+    .\.tools\dotnet-format --folder --verify-no-changes
+  displayName: 'Run dotnet-format (verify no changes)'
+  continueOnError: false
+
 - task: DotNetCoreCLI@2
   inputs:
     command: 'build'
@@ -26,10 +33,25 @@ steps:
     arguments: '--configuration $(buildConfiguration)'
 
 - task: DotNetCoreCLI@2
+  displayName: 'Run tests with code coverage'
   inputs:
     command: 'test'
     projects: '**/*Tests/*.csproj'
-    arguments: '--configuration $(buildConfiguration) --no-build'
+    arguments: '--configuration $(buildConfiguration) --no-build --collect:"XPlat Code Coverage" --results-directory "$(Agent.TempDirectory)/TestResults"'
+
+- task: PublishCodeCoverageResults@1
+  inputs:
+    codeCoverageTool: 'Cobertura'
+    summaryFileLocation: '$(Agent.TempDirectory)/TestResults/**/coverage.cobertura.xml'
+    reportDirectory: '$(Agent.TempDirectory)/TestResults'
+    failIfCoverageEmpty: false
+
+- task: DotNetCoreCLI@2
+  displayName: 'Publish WinForms app'
+  inputs:
+    command: 'publish'
+    projects: 'SQLConnection/SQLConnection.csproj'
+    arguments: '--configuration $(buildConfiguration) --output "$(Build.ArtifactStagingDirectory)/publish"'
 
 - task: PublishBuildArtifacts@1
   inputs:

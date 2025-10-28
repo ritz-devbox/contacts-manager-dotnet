@@ -1,14 +1,16 @@
+[![CI](https://github.com/ritz-devbox/contacts-manager-dotnet/actions/workflows/ci.yml/badge.svg)](https://github.com/ritz-devbox/contacts-manager-dotnet/actions/workflows/ci.yml)
+
 # contacts-manager-dotnet
 
-WinForms contacts manager for .NET 8 using SQLite — CRUD, import/export, validation, paging, and tests.
+WinForms contacts manager for .NET8 using SQLite — CRUD, import/export, validation, paging, and tests.
 
 ## Overview
-A simple Windows Forms contacts manager built for .NET 8 that stores contacts in a local SQLite database. Features include:
+A simple Windows Forms contacts manager built for .NET8 that stores contacts in a local SQLite database. Features include:
 
 - Create, read, update, delete (CRUD) contacts
 - CSV import and export
 - Duplicate detection (by Name + Email)
-- Input validation: Name (required), Email (basic format), Mobile (digits only, 7–15 chars)
+- Input validation: Name (required), Email (basic format), Mobile (digits only,7–15 chars)
 - Search / filter by name or email
 - Paging support for large lists
 - Database schema migration adding an Id primary key when required
@@ -16,7 +18,7 @@ A simple Windows Forms contacts manager built for .NET 8 that stores contacts in
 - Azure Pipelines CI configuration included
 
 ## Description
-A Windows Forms contacts manager targeting .NET 8 that stores contacts in a local SQLite database. The app demonstrates a small but complete desktop data application with schema migration, validation, import/export, paging, search/filter, duplicate checking, and a test suite.
+A Windows Forms contacts manager targeting .NET8 that stores contacts in a local SQLite database. The app demonstrates a small but complete desktop data application with schema migration, validation, import/export, paging, search/filter, duplicate checking, and a test suite.
 
 ## Features
 - Persistent storage using SQLite (data.db)
@@ -29,20 +31,27 @@ A Windows Forms contacts manager targeting .NET 8 that stores contacts in a loca
 - Azure Pipelines config (azure-pipelines.yml) for CI
 
 ## Running the app
-- Requires .NET 8 SDK
+- Requires .NET8 SDK
 - From repo root:
 
-  dotnet run --project SQLConnection/SQLConnection.csproj
+ dotnet run --project SQLConnection/SQLConnection.csproj
 
 ## Running tests
 - From repo root:
 
-  dotnet test
+ dotnet test
 
 The test project uses xUnit and Microsoft.Data.Sqlite for in-memory database tests.
 
 ## CI
-An `azure-pipelines.yml` file is included to build the solution and run tests on a Windows hosted agent using the .NET 8 SDK. You can also convert the steps to GitHub Actions if you prefer.
+An `azure-pipelines.yml` file is included to build the solution and run tests on a Windows hosted agent using the .NET8 SDK. You can also convert the steps to GitHub Actions if you prefer.
+
+This repository also includes a GitHub Actions workflow at `.github/workflows/ci.yml` that:
+
+- verifies formatting via `dotnet-format` (fail on changes)
+- builds the solution on .NET8 (Windows runner)
+- runs unit tests and collects XPlat code coverage
+- publishes WinForms output as workflow artifacts
 
 ## Topics / tags
 winforms, dotnet8, sqlite, contacts, crud, csv, testing, xunit, ci, azure-pipelines
