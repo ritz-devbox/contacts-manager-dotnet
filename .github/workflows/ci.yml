@@ -1,47 +1,49 @@
-name: CI
+name: .NET Desktop Build
 
 on:
   push:
-    branches: [ main ]
+    branches: [ "master" ]
   pull_request:
-    branches: [ main ]
-  workflow_dispatch:
-    inputs:
-      configuration:
-        description: 'Build configuration (Debug or Release)'
-        required: false
-        default: 'Release'
+    branches: [ "master" ]
 
 jobs:
   build:
+    strategy:
+      matrix:
+        configuration: [Debug, Release]
+
     runs-on: windows-latest
 
+    env:
+      Solution_Name: SQLConnection.sln
+
     steps:
-      - uses: actions/checkout@v4
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v3
-        with:
-          dotnet-version: '8.x'
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 8.0.x
 
-      - name: Restore
-        run: dotnet restore
+    - name: Setup MSBuild
+      uses: microsoft/setup-msbuild@v2
 
-      - name: Format
-        run: dotnet format --verify-no-changes
+    - name: Restore dependencies
+      run: msbuild $env:Solution_Name /t:Restore /p:Configuration=${{ matrix.configuration }}
 
-      - name: Build
-        run: dotnet build --configuration ${{ github.event.inputs.configuration || 'Release' }}
+    - name: Build solution
+      run: msbuild $env:Solution_Name /p:Configuration=${{ matrix.configuration }}
 
-      # Uncomment this if you actually have test projects
-      # - name: Test with coverage
-      #   run: dotnet test --configuration ${{ github.event.inputs.configuration || 'Release' }} --collect:"XPlat Code Coverage" --results-directory ./TestResults
+    # Optional — only if you later add tests
+    # - name: Run unit tests
+    #   run: dotnet test $env:Solution_Name --configuration ${{ matrix.configuration }}
 
-      - name: Publish WinForms
-        run: dotnet publish SQLConnection/SQLConnection.csproj -c ${{ github.event.inputs.configuration || 'Release' }} -o out
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: publish
-          path: out
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: SQLConnection-${{ matrix.configuration }}
+        path: |
+          **/bin/${{ matrix.configuration }}/
