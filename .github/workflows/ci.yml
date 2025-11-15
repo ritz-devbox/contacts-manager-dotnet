@@ -1,46 +1,41 @@
 name: CI
 
 on:
- push:
-   branches: [ main ]
- pull_request:
-   branches: [ main ]
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
 
 jobs:
- build:
-   runs-on: windows-latest
+  build:
+    runs-on: windows-latest
 
-   steps:
-     - uses: actions/checkout@v4
+    steps:
+      - uses: actions/checkout@v4
 
-     - name: Setup .NET
-       uses: actions/setup-dotnet@v3
-       with:
-         dotnet-version: '8.x'
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: '8.x'
 
-     - name: Restore
-       run: dotnet restore
+      - name: Restore
+        run: dotnet restore
 
- #- name: Install dotnet-format
- #run: dotnet tool install --tool-path .tools dotnet-format --version8.*
+      - name: Format
+        run: dotnet format --verify-no-changes
 
- #- name: Verify formatting
- #run: ./.tools/dotnet-format --folder --verify-no-changes
+      - name: Build
+        run: dotnet build --configuration Release
 
-     - name: Format
-       run: dotnet format --verify-no-changes
+      # Uncomment this if you actually have test projects
+      # - name: Test with coverage
+      #   run: dotnet test --configuration Release --collect:"XPlat Code Coverage" --results-directory ./TestResults
 
-     - name: Build
-       run: dotnet build --configuration Release
+      - name: Publish WinForms
+        run: dotnet publish SQLConnection/SQLConnection.csproj -c Release -o out
 
-     - name: Test with coverage
-       run: dotnet test --configuration Release --collect:"XPlat Code Coverage" --results-directory ./TestResults
-
-     - name: Publish WinForms
-       run: dotnet publish SQLConnection/SQLConnection.csproj -c Release -o out
-
-     - name: Upload artifact
-       uses: actions/upload-artifact@v4
-       with:
-         name: publish
-         path: out
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: publish
+          path: out
